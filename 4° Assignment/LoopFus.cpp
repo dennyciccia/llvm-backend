@@ -76,7 +76,7 @@ bool areControlFlowEquivalent(Loop* L0, Loop* L1, DominatorTree &DT, PostDominat
 
 bool nonNegativeDistance(Loop* L0, Loop* L1, DependenceInfo &DI, ScalarEvolution &SE){
     //outs() << "nonNegativeDistance()\n";
-    bool nonNegDist = false;
+    bool nonNegDist = true;
     //itera sui blocchi del loop
     for(auto iterBB = L0->getBlocks().begin(); iterBB != L0->getBlocks().end(); ++iterBB){
         BasicBlock* BB = *iterBB;
@@ -127,8 +127,11 @@ bool nonNegativeDistance(Loop* L0, Loop* L1, DependenceInfo &DI, ScalarEvolution
                                     //outs() << "result: GE\n";
                                     nonNegDist = true;
                                 }else{
+                                    nonNegDist = false;
                                     //outs() << "result: not GE\n";
                                 }
+                            }else{
+                                nonNegDist = false;
                             }
 
                             /*

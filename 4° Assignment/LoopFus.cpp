@@ -200,9 +200,12 @@ bool fuseLoops(Loop* L0, Loop* L1){
 PreservedAnalyses LoopFus::run(Function &F, FunctionAnalysisManager &AM){
     LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
     
-    for (auto iterL = LI.getLoopsInPreorder().begin(); iterL != LI.getLoopsInPreorder().end()-1; ++iterL){
+    for (auto iterL = LI.getTopLevelLoops().end()-1; iterL != LI.getTopLevelLoops().begin(); --iterL){
         Loop* L0 = *iterL;
-        Loop* L1 = *(iterL+1);
+        Loop* L1 = *(iterL-1);
+
+        outs() << "L0: " << *L0 << "\n";
+        outs() << "L1: " << *L1 << "\n";
 
         // condizione 1: loop adiacenti
         bool adiacenti = areNext(L0, L1);
@@ -211,12 +214,12 @@ PreservedAnalyses LoopFus::run(Function &F, FunctionAnalysisManager &AM){
         ScalarEvolution &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
         bool equalTripCount = areTripCountsEqual(L0, L1, SE);
 
-        // condizione 3: loop flow equivalent
+        // condizione 3: loop control flow equivalent
         DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
         PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
         bool CFEquivalent = areControlFlowEquivalent(L0, L1, DT, PDT);
 
-        // condizione 4: non ci possono essere distanze negative nelle dipendenze tra I due loop
+        // condizione 4: non ci possono essere distanze negative nelle dipendenze tra i due loop
         DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);
         bool nonNegativeDist = nonNegativeDistance(L0, L1, DI, SE);
 

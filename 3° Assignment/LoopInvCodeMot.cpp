@@ -1,9 +1,4 @@
 #include "llvm/Transforms/Utils/LoopInvCodeMot.h"
-#include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Dominators.h"
-#include <llvm/IR/Constants.h>
-#include <vector>
 
 using namespace llvm;
 
@@ -47,7 +42,7 @@ PreservedAnalyses LoopInvCodeMot::run(Loop &L, LoopAnalysisManager &LAM, LoopSta
                     MDString* metadato = MDString::get(instrContext, "isLoopInvariant");
                     MDNode *mdnode = MDNode::get(instrContext, metadato);
                     I.setMetadata("isLoopInvariant", mdnode);
-                    //outs() << I << "\n";
+                    //outs() << "Istruzione loop invariant: " << I << "\n";
                 }
             }
         }
@@ -65,7 +60,8 @@ PreservedAnalyses LoopInvCodeMot::run(Loop &L, LoopAnalysisManager &LAM, LoopSta
         for (unsigned int i = 0; i < term->getNumSuccessors(); i++) {
             BasicBlock *succ = term->getSuccessor(i);
             if (!L.contains(succ)) {
-            exits.push_back(succ);
+                exits.push_back(succ);
+                //outs() << "Uscita: " << succ->getName() << "\n";
             }
         }
     }
@@ -85,6 +81,8 @@ PreservedAnalyses LoopInvCodeMot::run(Loop &L, LoopAnalysisManager &LAM, LoopSta
             for(long unsigned int i=0; i<exits.size(); i++){
                 if(!DT.dominates(I.getParent(), exits[i])){
                     domina_tutte_le_uscite = false;
+                } else {
+                    //outs() << "Domina tutte le uscite: " << I << "\n";
                 }
             }
 
@@ -100,15 +98,17 @@ PreservedAnalyses LoopInvCodeMot::run(Loop &L, LoopAnalysisManager &LAM, LoopSta
 
             // controlla che l'istruzione domina tutti i blocchi nel loop che usano la variabile a cui si sta assegnando un valore
             // praticamente scorri gli users e quando ne trovi uno che non è dominato metti false
+            // in SSA è sempre vero
             bool domina_users_nel_loop = true;
-            for(auto user = I.user_begin(); user != I.user_end(); ++user){
+            /*for(auto user = I.user_begin(); user != I.user_end(); ++user){
                 if(Instruction *userInst = dyn_cast<Instruction>(*user)){
                     if(!DT.dominates(I.getParent(), userInst->getParent())){
                         domina_users_nel_loop = false;
                     }
                 }   
-            }
+            }*/
 
+            //outs() << "Istruzione: " << I << ", Condizioni: " << domina_tutte_le_uscite << istruzioni_dead << domina_users_nel_loop << "\n";
             if(I.getMetadata("isLoopInvariant") && (domina_tutte_le_uscite || istruzioni_dead) && domina_users_nel_loop){
                 //MDNode agganciato al context dell'instruction
                 LLVMContext &instrContext = I.getContext();

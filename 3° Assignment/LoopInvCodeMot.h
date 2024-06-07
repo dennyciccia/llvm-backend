@@ -2,6 +2,11 @@
 #define LLVM_TRANSFORMS_LOOPINVCODEMOT_H
 #include "llvm/IR/PassManager.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Dominators.h"
+#include <llvm/IR/Constants.h>
+#include <vector>
 
 namespace llvm {
     

@@ -13,11 +13,6 @@ BasicBlock* nonLoopSuccessor(BranchInst* guard, Loop* L){
 
 bool areNext(Loop* L0, Loop* L1){
     bool adiacenti = false;
-
-    //outs() << "Loop 0:\n";
-    //outs() << *L0 << "\n";
-    //outs() << "Loop 1:\n";
-    //outs() << *L1 << "\n";
     
     if(L0->isGuarded() && L1->isGuarded()){
         //outs() << "guarded\n";
@@ -185,6 +180,7 @@ bool fuseLoops(Loop* L0, Loop* L1){
     if(!endBodyL0) return false;
     BasicBlock *bodyL1 = L1->getHeader()->getTerminator()->getSuccessor(0);
     endBodyL0->getTerminator()->setSuccessor(0, bodyL1);
+    //endBodyL0->getTerminator()->setSuccessor(0, bodyL1->getTerminator()->getSuccessor(0));
 
     //il successore del body di L1 è il latch di L0
     BasicBlock *endBodyL1 = getEndBody(L1);
@@ -200,42 +196,82 @@ bool fuseLoops(Loop* L0, Loop* L1){
     return true;
 }
 
-PreservedAnalyses LoopFus::run(Function &F, FunctionAnalysisManager &AM){
-    LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
-    
-    for (auto iterL = LI.getTopLevelLoops().end()-1; iterL != LI.getTopLevelLoops().begin(); --iterL){
-        Loop* L0 = *iterL;
-        Loop* L1 = *(iterL-1);
-
-        outs() << "L0: " << *L0 << "\n";
-        outs() << "L1: " << *L1 << "\n";
-
-        // condizione 1: loop adiacenti
-        bool adiacenti = areNext(L0, L1);
-
-        // condizione 2: stesso numero di iterazioni
-        ScalarEvolution &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
-        bool equalTripCount = areTripCountsEqual(L0, L1, SE);
-
-        // condizione 3: loop control flow equivalent
-        DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
-        PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
-        bool CFEquivalent = areControlFlowEquivalent(L0, L1, DT, PDT);
-
-        // condizione 4: non ci possono essere distanze negative nelle dipendenze tra i due loop
-        DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);
-        bool nonNegativeDist = nonNegativeDistance(L0, L1, DI, SE);
-
-        // trasformazione del codice
-        if(adiacenti && equalTripCount && CFEquivalent && nonNegativeDist){
-            if(fuseLoops(L0, L1))
-                outs() << "loop fusi\n";
-            else
-                outs() << "loop non fusi\n";
-        } else {
-            outs() << "loop non fusi\n";
+vector<Loop*> getLoopsInLevel(LoopInfo &LI, unsigned int livello){
+    vector<Loop*> loops;
+    for(auto iterL = LI.getLoopsInPreorder().begin(); iterL != LI.getLoopsInPreorder().end(); ++iterL){
+        Loop *L = *iterL;
+        if(L->getLoopDepth() == livello){
+            loops.push_back(L);
         }
     }
+    return loops;
+}
 
+PreservedAnalyses LoopFus::run(Function &F, FunctionAnalysisManager &AM){
+    LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+    bool uniti;
+    bool finitiLivelli = false;
+    unsigned int livello = 1;
+
+    //itera sui livelli
+    while(!finitiLivelli){
+        //prendi i loop nel livello corrente
+        vector<Loop*> loopsInLevel = getLoopsInLevel(LI, livello);
+        //se non ce ne sono esci
+        if(loopsInLevel.empty())
+            finitiLivelli = true;
+        
+        uniti = true;
+            
+        //itera finchè non viene unito nessun loop
+        while(uniti){
+            uniti = false;
+
+            //scorri i loop nel livello corrente ed eventualmente unisci
+            for (auto iterL = loopsInLevel.begin(); iterL != loopsInLevel.end(); ++iterL){
+                //se sei all'ultimo loop che non ha niente dopo esci dal ciclo perchè è finito
+                if(iterL == loopsInLevel.end()-1) break;
+
+                Loop* L0 = *iterL;
+                Loop* L1 = *(iterL+1);
+
+                outs() << "Livello: " << livello << "\n";
+                outs() << "L0: " << *L0 << "\n";
+                outs() << "L1: " << *L1 << "\n";
+
+                // condizione 1: loop adiacenti
+                bool adiacenti = areNext(L0, L1);
+
+                // condizione 2: stesso numero di iterazioni
+                ScalarEvolution &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+                bool equalTripCount = areTripCountsEqual(L0, L1, SE);
+
+                // condizione 3: loop control flow equivalent
+                DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+                PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+                bool CFEquivalent = areControlFlowEquivalent(L0, L1, DT, PDT);
+
+                // condizione 4: non ci possono essere distanze negative nelle dipendenze tra i due loop
+                DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);
+                bool nonNegativeDist = nonNegativeDistance(L0, L1, DI, SE);
+
+                // trasformazione del codice
+                if(adiacenti && equalTripCount && CFEquivalent && nonNegativeDist){
+                    if(fuseLoops(L0, L1)){
+                        outs() << "loop fusi\n\n";
+                        uniti = true;
+                        loopsInLevel.erase(iterL+1);
+                        break;
+                    } else {
+                        outs() << "loop non fusi\n\n";
+                    }
+                } else {
+                    outs() << "non ci sono le condizioni per la fusione\n\n";
+                }
+            }
+        }
+        livello++;
+    }
+    
     return PreservedAnalyses::all();
 }
